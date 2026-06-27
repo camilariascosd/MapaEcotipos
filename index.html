@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Mapa de Árboles — Inventario Forestal</title>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  background: #f7f3ec;
+  color: #3a2e22;
+  min-height: 100vh;
+}
+header {
+  background: #ede4d0;
+  border-bottom: 2px solid #c8b99a;
+  padding: 12px 24px;
+  display: flex; align-items: center; gap: 14px;
+}
+header h1 { font-size: 16px; font-weight: normal; color: #3a2e22; letter-spacing: 0.5px; font-style: italic; }
+header span { font-size: 11px; color: #8a7a62; }
+.app { display: flex; height: calc(100vh - 52px); }
+
+/* SIDEBAR */
+.sidebar {
+  width: 264px; min-width: 264px;
+  background: #f0e8d8;
+  border-right: 1px solid #d4c8b0;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.sb-sec { padding: 13px 15px; border-bottom: 1px solid #ddd0b8; }
+.sb-sec h3 {
+  font-size: 9px; font-weight: bold; letter-spacing: 1.4px;
+  text-transform: uppercase; color: #9a8870; margin-bottom: 9px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* Upload */
+.upload-zone {
+  border: 1.5px dashed #c0ad90; border-radius: 6px;
+  padding: 13px; text-align: center; cursor: pointer;
+  background: #f7f0e2; transition: all 0.2s;
+}
+.upload-zone:hover { border-color: #7a9464; background: #eef3e8; }
+.upload-zone.loaded { border-color: #7a9464; border-style: solid; background: #eef3e8; }
+.upload-zone p { font-size: 11px; color: #8a7a62; line-height: 1.5; font-family: 'Segoe UI', Arial, sans-serif; }
+.upload-zone.loaded p { color: #5a7a4a; }
+#fileInput { display:none; }
+
+/* Chips */
+.filter-group { margin-bottom: 10px; }
+.filter-label { font-size: 10px; color: #9a8870; margin-bottom: 5px; display: block; font-family: 'Segoe UI', Arial, sans-serif; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  padding: 3px 10px; border-radius: 3px; font-size: 11px;
+  cursor: pointer; border: 1px solid #c0ad90; font-family: 'Segoe UI', Arial, sans-serif;
+  transition: all 0.15s; user-select: none;
+  background: #f7f0e2; color: #8a7a62;
+}
+.chip:hover { border-color: #7a9464; color: #5a7a4a; }
+.chip.active { color: #fff !important; }
+.chip[data-type="ec"].active[data-val="1"]  { background: #5a7a4a; border-color: #4a6a3a; }
+.chip[data-type="ec"].active[data-val="2"]  { background: #8a6a3a; border-color: #7a5a2a; }
+.chip[data-type="ec"].active[data-val="3"]  { background: #9a8030; border-color: #8a7020; }
+.chip[data-type="ferti"].active[data-val="alta"]  { background: #5a7a4a; border-color: #4a6a3a; }
+.chip[data-type="ferti"].active[data-val="media"] { background: #9a8030; border-color: #8a7020; }
+.chip[data-type="ferti"].active[data-val="baja"]  { background: #8a6a3a; border-color: #7a5a2a; }
+.chip[data-type="bloque"].active { background: #6a7a5a; border-color: #5a6a4a; }
+
+.btn-reset {
+  width:100%; padding:7px; border-radius:4px;
+  background:#e8dcc8; border:1px solid #c0ad90; color:#6a5a48;
+  font-size:11px; cursor:pointer; margin-top:7px;
+  font-family:'Segoe UI',Arial,sans-serif; transition:all 0.15s;
+}
+.btn-reset:hover { background:#ddd0b8; }
+
+/* Stats */
+.stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.stat-box {
+  background:#f7f0e2; border-radius:4px; padding:9px;
+  text-align:center; border:1px solid #d4c8b0;
+}
+.stat-box .num { font-size:20px; font-weight:bold; color:#3a2e22; font-family:'Segoe UI',Arial,sans-serif; }
+.stat-box .lbl { font-size:9.5px; color:#9a8870; font-family:'Segoe UI',Arial,sans-serif; }
+
+/* Legend */
+.legend-item { display:flex; align-items:center; gap:8px; margin-bottom:6px;
+  font-size:11px; color:#6a5a48; font-family:'Segoe UI',Arial,sans-serif; }
+.legend-tree { width:18px; height:22px; flex-shrink:0; }
+
+/* Export */
+.export-btns { display:flex; flex-direction:column; gap:5px; }
+.btn-export {
+  padding:8px 12px; border-radius:4px; border:none;
+  font-size:11px; font-weight:bold; cursor:pointer; font-family:'Segoe UI',Arial,sans-serif;
+  transition:all 0.15s; display:flex; align-items:center; gap:7px;
+}
+.btn-filtered { background:#5a7a4a; color:#fff; }
+.btn-filtered:hover { background:#4a6a3a; }
+.btn-all { background:#8a6a3a; color:#fff; }
+.btn-all:hover { background:#7a5a2a; }
+
+/* Canvas */
+.canvas-area {
+  flex:1; overflow:hidden; background:#f7f3ec;
+  display:flex; flex-direction:column;
+}
+.canvas-toolbar {
+  background:#ede4d0; border-bottom:1px solid #d4c8b0;
+  padding:7px 16px; display:flex; align-items:center; gap:10px;
+  font-size:11px; color:#9a8870; font-family:'Segoe UI',Arial,sans-serif;
+}
+.filter-summary { color:#5a7a4a; font-weight:bold; }
+#mainCanvas { flex:1; width:100%; height:100%; cursor:crosshair; }
+
+/* Tooltip */
+#tooltip {
+  position:fixed; display:none;
+  background:#f7f0e2; border:1px solid #c0ad90; border-radius:5px;
+  padding:10px 14px; font-size:11px; pointer-events:none; z-index:100;
+  box-shadow:0 4px 16px rgba(80,60,30,0.18); min-width:155px;
+  font-family:'Segoe UI',Arial,sans-serif;
+}
+#tooltip .tt-title { font-weight:bold; font-size:13px; color:#3a2e22; margin-bottom:6px; font-family:'Georgia',serif; }
+#tooltip .tt-row { display:flex; justify-content:space-between; gap:12px; color:#9a8870; margin-bottom:2px; }
+#tooltip .tt-row span:last-child { color:#3a2e22; font-weight:600; }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 28 28">
+    <rect x="12" y="18" width="4" height="8" rx="1.5" fill="#8a6a3a"/>
+    <circle cx="14" cy="13" r="10" fill="#7a9464" opacity="0.5"/>
+    <circle cx="14" cy="11" r="10" fill="#5a7a4a"/>
+    <circle cx="11" cy="9"  r="5"  fill="#7a9464" opacity="0.6"/>
+  </svg>
+  <div>
+    <h1>Inventario Forestal — Mapa de Posiciones</h1>
+    <span>Cruce Inventario × Mapeo Actualizado &nbsp;·&nbsp; Posición relativa normalizada</span>
+  </div>
+</header>
+
+<div class="app">
+<aside class="sidebar">
+
+  <div class="sb-sec">
+    <h3>Cargar Archivo</h3>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <p>Haz clic para subir<br><strong>Cruce_Final.xlsx</strong></p>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx">
+    <p id="loadStatus" style="font-size:10px;color:#9a8870;margin-top:5px;text-align:center;font-family:'Segoe UI',Arial,sans-serif;">Datos embebidos activos</p>
+  </div>
+
+  <div class="sb-sec">
+    <h3>Filtros</h3>
+    <div class="filter-group">
+      <span class="filter-label">Ecotipo</span>
+      <div class="chips">
+        <div class="chip active" data-type="ec" data-val="1">Ec 1</div>
+        <div class="chip active" data-type="ec" data-val="2">Ec 2</div>
+        <div class="chip active" data-type="ec" data-val="3">Ec 3</div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Fertilización</span>
+      <div class="chips">
+        <div class="chip active" data-type="ferti" data-val="alta">Alta</div>
+        <div class="chip active" data-type="ferti" data-val="media">Media</div>
+        <div class="chip active" data-type="ferti" data-val="baja">Baja</div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Bloque</span>
+      <div class="chips">
+        <div class="chip active" data-type="bloque" data-val="1">B1</div>
+        <div class="chip active" data-type="bloque" data-val="2">B2</div>
+        <div class="chip active" data-type="bloque" data-val="3">B3</div>
+      </div>
+    </div>
+    <button class="btn-reset" onclick="resetFilters()">↺ Mostrar todos</button>
+  </div>
+
+  <div class="sb-sec">
+    <h3>Resumen</h3>
+    <div class="stats">
+      <div class="stat-box"><div class="num" id="statVisible">102</div><div class="lbl">Visibles</div></div>
+      <div class="stat-box"><div class="num" id="statTotal">102</div><div class="lbl">Total</div></div>
+      <div class="stat-box"><div class="num" id="statGhost">0</div><div class="lbl">Contexto</div></div>
+      <div class="stat-box"><div class="num" id="statAlt">—</div><div class="lbl">Alt. prom.</div></div>
+    </div>
+  </div>
+
+  <div class="sb-sec">
+    <h3>Leyenda</h3>
+    <div id="legendContainer"></div>
+  </div>
+
+  <div class="sb-sec">
+    <h3>Exportar PNG</h3>
+    <div class="export-btns">
+      <button class="btn-export btn-filtered" onclick="exportPNG('filtered')">⬇ Vista filtrada</button>
+      <button class="btn-export btn-all"      onclick="exportPNG('all')">⬇ Vista completa</button>
+    </div>
+  </div>
+
+</aside>
+
+<div class="canvas-area">
+  <div class="canvas-toolbar">
+    <span>Filtro:</span>
+    <span class="filter-summary" id="filterSummary">Todos</span>
+    <span style="margin-left:auto">Pasa el cursor sobre un árbol para ver detalles</span>
+  </div>
+  <canvas id="mainCanvas"></canvas>
+</div>
+</div>
+
+<div id="tooltip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── DATOS ────────────────────────────────────────────────────────────────────
+let allRecords = [{"ec": 1, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "alta", "altitud": 318.4, "lat": 1.36759, "lon": -75.861503, "serie": "S2Ec1", "fila": 5, "col": 2, "gi": 3, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "alta", "altitud": 317.8, "lat": 1.367859, "lon": -75.861683, "serie": "S3Ec2", "fila": 4, "col": 5, "gi": 2, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "alta", "altitud": 316.5, "lat": 1.368219, "lon": -75.858808, "serie": "S5Ec3", "fila": 20, "col": 9, "gi": 17, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "alta", "altitud": 317.5, "lat": 1.3675, "lon": -75.862222, "serie": "S1Ec1", "fila": 1, "col": 1, "gi": 0, "gj": 0}, {"ec": 2, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "alta", "altitud": 318.9, "lat": 1.367949, "lon": -75.861683, "serie": "S4Ec2", "fila": 4, "col": 6, "gi": 2, "gj": 3}, {"ec": 3, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "alta", "altitud": 316.7, "lat": 1.368219, "lon": -75.858269, "serie": "S5Ec3", "fila": 23, "col": 9, "gi": 20, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "alta", "altitud": 318.2, "lat": 1.36759, "lon": -75.862222, "serie": "S2Ec1", "fila": 1, "col": 2, "gi": 0, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "alta", "altitud": 319.2, "lat": 1.367859, "lon": -75.861324, "serie": "S3Ec2", "fila": 6, "col": 5, "gi": 4, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "alta", "altitud": 316.9, "lat": 1.368219, "lon": -75.858089, "serie": "S5Ec3", "fila": 24, "col": 9, "gi": 21, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "alta", "altitud": 314.7, "lat": 1.36759, "lon": -75.861863, "serie": "S2Ec1", "fila": 3, "col": 2, "gi": 1, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "alta", "altitud": 317.8, "lat": 1.367859, "lon": -75.860964, "serie": "S3Ec2", "fila": 8, "col": 5, "gi": 6, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "alta", "altitud": 317.0, "lat": 1.368308, "lon": -75.858987, "serie": "S6Ec3", "fila": 19, "col": 10, "gi": 16, "gj": 5}, {"ec": 1, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "alta", "altitud": 318.5, "lat": 1.3675, "lon": -75.860425, "serie": "S1Ec1", "fila": 11, "col": 1, "gi": 9, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "alta", "altitud": 315.2, "lat": 1.367859, "lon": -75.855213, "serie": "S3Ec2", "fila": 40, "col": 5, "gi": 35, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "alta", "altitud": 316.5, "lat": 1.368219, "lon": -75.855034, "serie": "S5Ec3", "fila": 41, "col": 9, "gi": 36, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "alta", "altitud": 317.7, "lat": 1.36759, "lon": -75.858808, "serie": "S2Ec1", "fila": 20, "col": 2, "gi": 17, "gj": 1}, {"ec": 2, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "alta", "altitud": 315.4, "lat": 1.367859, "lon": -75.855034, "serie": "S3Ec2", "fila": 41, "col": 5, "gi": 36, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "alta", "altitud": 315.7, "lat": 1.368219, "lon": -75.855393, "serie": "S5Ec3", "fila": 39, "col": 9, "gi": 34, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "alta", "altitud": 317.5, "lat": 1.36759, "lon": -75.85755, "serie": "S2Ec1", "fila": 27, "col": 2, "gi": 24, "gj": 1}, {"ec": 2, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "alta", "altitud": 315.4, "lat": 1.367859, "lon": -75.853416, "serie": "S3Ec2", "fila": 50, "col": 5, "gi": 41, "gj": 2}, {"ec": 1, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "alta", "altitud": 317.8, "lat": 1.3675, "lon": -75.859167, "serie": "S1Ec1", "fila": 18, "col": 1, "gi": 15, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "alta", "altitud": 315.2, "lat": 1.367949, "lon": -75.851799, "serie": "S4Ec2", "fila": 59, "col": 6, "gi": 47, "gj": 3}, {"ec": 1, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "alta", "altitud": 316.5, "lat": 1.36759, "lon": -75.854674, "serie": "S2Ec1", "fila": 43, "col": 2, "gi": 37, "gj": 1}, {"ec": 2, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "alta", "altitud": null, "lat": 1.367949, "lon": -75.849642, "serie": "S4Ec2", "fila": 71, "col": 6, "gi": 56, "gj": 3}, {"ec": 3, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "alta", "altitud": 329.3, "lat": 1.368308, "lon": -75.85126, "serie": "S6Ec3", "fila": 62, "col": 10, "gi": 50, "gj": 5}, {"ec": 1, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "alta", "altitud": 317.4, "lat": 1.3675, "lon": -75.856651, "serie": "S1Ec1", "fila": 32, "col": 1, "gi": 28, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "alta", "altitud": 316.0, "lat": 1.367949, "lon": -75.849463, "serie": "S4Ec2", "fila": 72, "col": 6, "gi": 57, "gj": 3}, {"ec": 3, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "alta", "altitud": 316.5, "lat": 1.368219, "lon": -75.850721, "serie": "S5Ec3", "fila": 65, "col": 9, "gi": 53, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "alta", "altitud": 317.9, "lat": 1.3675, "lon": -75.856471, "serie": "S1Ec1", "fila": 33, "col": 1, "gi": 29, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "alta", "altitud": 316.2, "lat": 1.367859, "lon": -75.850361, "serie": "S3Ec2", "fila": 67, "col": 5, "gi": 54, "gj": 2}, {"ec": 1, "bloque": 3, "arbol": 4, "etiqueta": "B3A4", "ferti": "alta", "altitud": 318.3, "lat": 1.36759, "lon": -75.854315, "serie": "S2Ec1", "fila": 45, "col": 2, "gi": 38, "gj": 1}, {"ec": 2, "bloque": 3, "arbol": 4, "etiqueta": "B3A4", "ferti": "alta", "altitud": 317.0, "lat": 1.367949, "lon": -75.849103, "serie": "S4Ec2", "fila": 74, "col": 6, "gi": 58, "gj": 3}, {"ec": 1, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "media", "altitud": 320.3, "lat": 1.36759, "lon": -75.861144, "serie": "S2Ec1", "fila": 7, "col": 2, "gi": 5, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "media", "altitud": 317.9, "lat": 1.367949, "lon": -75.860785, "serie": "S4Ec2", "fila": 9, "col": 6, "gi": 7, "gj": 3}, {"ec": 3, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "media", "altitud": 321.5, "lat": 1.368219, "lon": -75.860245, "serie": "S5Ec3", "fila": 12, "col": 9, "gi": 10, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "media", "altitud": 319.5, "lat": 1.3675, "lon": -75.861503, "serie": "S1Ec1", "fila": 5, "col": 1, "gi": 3, "gj": 0}, {"ec": 2, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "media", "altitud": 318.0, "lat": 1.367949, "lon": -75.860605, "serie": "S4Ec2", "fila": 10, "col": 6, "gi": 8, "gj": 3}, {"ec": 3, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "media", "altitud": 321.3, "lat": 1.368219, "lon": -75.860066, "serie": "S5Ec3", "fila": 13, "col": 9, "gi": 11, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "media", "altitud": 319.9, "lat": 1.36759, "lon": -75.860964, "serie": "S2Ec1", "fila": 8, "col": 2, "gi": 6, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "media", "altitud": 295.0, "lat": 1.367859, "lon": -75.860425, "serie": "S3Ec2", "fila": 11, "col": 5, "gi": 9, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "media", "altitud": 319.2, "lat": 1.368219, "lon": -75.860785, "serie": "S5Ec3", "fila": 9, "col": 9, "gi": 7, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "media", "altitud": 319.7, "lat": 1.3675, "lon": -75.861683, "serie": "S1Ec1", "fila": 4, "col": 1, "gi": 2, "gj": 0}, {"ec": 2, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "media", "altitud": 314.5, "lat": 1.367859, "lon": -75.859886, "serie": "S3Ec2", "fila": 14, "col": 5, "gi": 12, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "media", "altitud": 319.3, "lat": 1.368219, "lon": -75.860425, "serie": "S5Ec3", "fila": 11, "col": 9, "gi": 9, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "media", "altitud": 315.9, "lat": 1.3675, "lon": -75.858987, "serie": "S1Ec1", "fila": 19, "col": 1, "gi": 16, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "media", "altitud": 314.2, "lat": 1.367859, "lon": -75.857909, "serie": "S3Ec2", "fila": 25, "col": 5, "gi": 22, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "media", "altitud": 315.0, "lat": 1.368219, "lon": -75.856112, "serie": "S5Ec3", "fila": 35, "col": 9, "gi": 31, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "media", "altitud": 316.0, "lat": 1.36759, "lon": -75.85719, "serie": "S2Ec1", "fila": 29, "col": 2, "gi": 26, "gj": 1}, {"ec": 2, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "media", "altitud": 315.8, "lat": 1.367859, "lon": -75.85719, "serie": "S3Ec2", "fila": 29, "col": 5, "gi": 26, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "media", "altitud": 317.4, "lat": 1.368308, "lon": -75.856831, "serie": "S6Ec3", "fila": 31, "col": 10, "gi": 27, "gj": 5}, {"ec": 1, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "media", "altitud": 316.8, "lat": 1.3675, "lon": -75.858448, "serie": "S1Ec1", "fila": 22, "col": 1, "gi": 19, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "media", "altitud": 315.3, "lat": 1.367859, "lon": -75.856292, "serie": "S3Ec2", "fila": 34, "col": 5, "gi": 30, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "media", "altitud": 316.5, "lat": 1.368219, "lon": -75.857729, "serie": "S5Ec3", "fila": 26, "col": 9, "gi": 23, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "media", "altitud": 317.3, "lat": 1.36759, "lon": -75.856112, "serie": "S2Ec1", "fila": 35, "col": 2, "gi": 31, "gj": 1}, {"ec": 2, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "media", "altitud": 315.8, "lat": 1.367949, "lon": -75.855753, "serie": "S4Ec2", "fila": 37, "col": 6, "gi": 32, "gj": 3}, {"ec": 3, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "media", "altitud": 317.0, "lat": 1.368219, "lon": -75.856471, "serie": "S5Ec3", "fila": 33, "col": 9, "gi": 29, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "media", "altitud": 317.9, "lat": 1.3675, "lon": -75.855573, "serie": "S1Ec1", "fila": 38, "col": 1, "gi": 33, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "media", "altitud": 314.9, "lat": 1.367859, "lon": -75.851799, "serie": "S3Ec2", "fila": 59, "col": 5, "gi": 47, "gj": 2}, {"ec": 3, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "media", "altitud": 318.0, "lat": 1.368219, "lon": -75.85108, "serie": "S5Ec3", "fila": 63, "col": 9, "gi": 51, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "media", "altitud": 318.0, "lat": 1.3675, "lon": -75.855213, "serie": "S1Ec1", "fila": 40, "col": 1, "gi": 35, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "media", "altitud": 314.5, "lat": 1.367859, "lon": -75.851619, "serie": "S3Ec2", "fila": 60, "col": 5, "gi": 48, "gj": 2}, {"ec": 3, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "media", "altitud": 317.8, "lat": 1.368308, "lon": -75.851619, "serie": "S6Ec3", "fila": 60, "col": 10, "gi": 48, "gj": 5}, {"ec": 1, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "media", "altitud": 317.8, "lat": 1.36759, "lon": -75.853416, "serie": "S2Ec1", "fila": 50, "col": 2, "gi": 41, "gj": 1}, {"ec": 2, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "media", "altitud": 314.2, "lat": 1.367949, "lon": -75.850721, "serie": "S4Ec2", "fila": 65, "col": 6, "gi": 53, "gj": 3}, {"ec": 3, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "media", "altitud": 316.8, "lat": 1.368219, "lon": -75.851799, "serie": "S5Ec3", "fila": 59, "col": 9, "gi": 47, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 4, "etiqueta": "B3A4", "ferti": "media", "altitud": 317.8, "lat": 1.3675, "lon": -75.855034, "serie": "S1Ec1", "fila": 41, "col": 1, "gi": 36, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 4, "etiqueta": "B3A4", "ferti": "media", "altitud": 315.7, "lat": 1.367859, "lon": -75.85126, "serie": "S3Ec2", "fila": 62, "col": 5, "gi": 50, "gj": 2}, {"ec": 1, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "baja", "altitud": 318.5, "lat": 1.36759, "lon": -75.860066, "serie": "S2Ec1", "fila": 13, "col": 2, "gi": 11, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "baja", "altitud": 314.8, "lat": 1.367949, "lon": -75.859167, "serie": "S4Ec2", "fila": 18, "col": 6, "gi": 15, "gj": 3}, {"ec": 3, "bloque": 1, "arbol": 1, "etiqueta": "B1A1", "ferti": "baja", "altitud": 319.8, "lat": 1.368219, "lon": -75.859706, "serie": "S5Ec3", "fila": 15, "col": 9, "gi": 13, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "baja", "altitud": 320.3, "lat": 1.36759, "lon": -75.860605, "serie": "S2Ec1", "fila": 10, "col": 2, "gi": 8, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "baja", "altitud": 316.0, "lat": 1.367859, "lon": -75.858628, "serie": "S3Ec2", "fila": 21, "col": 5, "gi": 18, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 2, "etiqueta": "B1A2", "ferti": "baja", "altitud": 319.8, "lat": 1.368308, "lon": -75.859886, "serie": "S6Ec3", "fila": 14, "col": 10, "gi": 12, "gj": 5}, {"ec": 1, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "baja", "altitud": 319.5, "lat": 1.36759, "lon": -75.860425, "serie": "S2Ec1", "fila": 11, "col": 2, "gi": 9, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "baja", "altitud": 315.0, "lat": 1.367859, "lon": -75.858269, "serie": "S3Ec2", "fila": 23, "col": 5, "gi": 20, "gj": 2}, {"ec": 3, "bloque": 1, "arbol": 3, "etiqueta": "B1A3", "ferti": "baja", "altitud": 319.2, "lat": 1.368219, "lon": -75.859347, "serie": "S5Ec3", "fila": 17, "col": 9, "gi": 14, "gj": 4}, {"ec": 1, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "baja", "altitud": 318.7, "lat": 1.36759, "lon": -75.859347, "serie": "S2Ec1", "fila": 17, "col": 2, "gi": 14, "gj": 1}, {"ec": 2, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "baja", "altitud": 316.0, "lat": 1.367949, "lon": -75.858269, "serie": "S4Ec2", "fila": 23, "col": 6, "gi": 20, "gj": 3}, {"ec": 3, "bloque": 1, "arbol": 4, "etiqueta": "B1A4", "ferti": "baja", "altitud": 317.2, "lat": 1.368308, "lon": -75.859347, "serie": "S6Ec3", "fila": 17, "col": 10, "gi": 14, "gj": 5}, {"ec": 1, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "baja", "altitud": 317.0, "lat": 1.3675, "lon": -75.857729, "serie": "S1Ec1", "fila": 26, "col": 1, "gi": 23, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "baja", "altitud": 315.0, "lat": 1.367859, "lon": -75.852518, "serie": "S3Ec2", "fila": 55, "col": 5, "gi": 45, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 1, "etiqueta": "B2A1", "ferti": "baja", "altitud": 317.4, "lat": 1.368219, "lon": -75.854674, "serie": "S5Ec3", "fila": 43, "col": 9, "gi": 37, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "baja", "altitud": 317.4, "lat": 1.36759, "lon": -75.855573, "serie": "S2Ec1", "fila": 38, "col": 2, "gi": 33, "gj": 1}, {"ec": 2, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "baja", "altitud": 314.9, "lat": 1.367949, "lon": -75.851439, "serie": "S4Ec2", "fila": 61, "col": 6, "gi": 49, "gj": 3}, {"ec": 3, "bloque": 2, "arbol": 2, "etiqueta": "B2A2", "ferti": "baja", "altitud": 316.9, "lat": 1.368219, "lon": -75.853955, "serie": "S5Ec3", "fila": 47, "col": 9, "gi": 39, "gj": 4}, {"ec": 1, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "baja", "altitud": 319.3, "lat": 1.3675, "lon": -75.85719, "serie": "S1Ec1", "fila": 29, "col": 1, "gi": 26, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "baja", "altitud": 315.5, "lat": 1.367949, "lon": -75.85126, "serie": "S4Ec2", "fila": 62, "col": 6, "gi": 50, "gj": 3}, {"ec": 3, "bloque": 2, "arbol": 3, "etiqueta": "B2A3", "ferti": "baja", "altitud": 317.0, "lat": 1.368308, "lon": -75.853955, "serie": "S6Ec3", "fila": 47, "col": 10, "gi": 39, "gj": 5}, {"ec": 1, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "baja", "altitud": 317.9, "lat": 1.3675, "lon": -75.85737, "serie": "S1Ec1", "fila": 28, "col": 1, "gi": 25, "gj": 0}, {"ec": 2, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "baja", "altitud": 315.5, "lat": 1.367859, "lon": -75.851979, "serie": "S3Ec2", "fila": 58, "col": 5, "gi": 46, "gj": 2}, {"ec": 3, "bloque": 2, "arbol": 4, "etiqueta": "B2A4", "ferti": "baja", "altitud": 315.3, "lat": 1.368219, "lon": -75.853057, "serie": "S5Ec3", "fila": 52, "col": 9, "gi": 42, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "baja", "altitud": 317.8, "lat": 1.3675, "lon": -75.856292, "serie": "S1Ec1", "fila": 34, "col": 1, "gi": 30, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "baja", "altitud": 315.5, "lat": 1.367859, "lon": -75.85108, "serie": "S3Ec2", "fila": 63, "col": 5, "gi": 51, "gj": 2}, {"ec": 3, "bloque": 3, "arbol": 1, "etiqueta": "B3A1", "ferti": "baja", "altitud": 315.0, "lat": 1.368219, "lon": -75.852877, "serie": "S5Ec3", "fila": 53, "col": 9, "gi": 43, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "baja", "altitud": 317.7, "lat": 1.36759, "lon": -75.853955, "serie": "S2Ec1", "fila": 47, "col": 2, "gi": 39, "gj": 1}, {"ec": 2, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "baja", "altitud": 316.2, "lat": 1.367859, "lon": -75.8509, "serie": "S3Ec2", "fila": 64, "col": 5, "gi": 52, "gj": 2}, {"ec": 3, "bloque": 3, "arbol": 2, "etiqueta": "B3A2", "ferti": "baja", "altitud": 316.0, "lat": 1.368219, "lon": -75.851979, "serie": "S5Ec3", "fila": 58, "col": 9, "gi": 46, "gj": 4}, {"ec": 1, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "baja", "altitud": 318.0, "lat": 1.3675, "lon": -75.855753, "serie": "S1Ec1", "fila": 37, "col": 1, "gi": 32, "gj": 0}, {"ec": 2, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "baja", "altitud": 317.0, "lat": 1.367859, "lon": -75.850721, "serie": "S3Ec2", "fila": 65, "col": 5, "gi": 53, "gj": 2}, {"ec": 3, "bloque": 3, "arbol": 3, "etiqueta": "B3A3", "ferti": "baja", "altitud": 315.3, "lat": 1.368308, "lon": -75.852697, "serie": "S6Ec3", "fila": 54, "col": 10, "gi": 44, "gj": 5}, {"ec": 1, "bloque": 3, "arbol": 4, "etiqueta": "B3A4", "ferti": "baja", "altitud": 317.7, "lat": 1.36759, "lon": -75.853596, "serie": "S2Ec1", "fila": 49, "col": 2, "gi": 40, "gj": 1}, {"ec": 2, "bloque": 3, "arbol": 4, "etiqueta": "B3A4", "ferti": "baja", "altitud": 316.5, "lat": 1.367949, "lon": -75.849822, "serie": "S4Ec2", "fila": 70, "col": 6, "gi": 55, "gj": 3}];
+const UNIQUE_LONS = [-75.862222, -75.861863, -75.861683, -75.861503, -75.861324, -75.861144, -75.860964, -75.860785, -75.860605, -75.860425, -75.860245, -75.860066, -75.859886, -75.859706, -75.859347, -75.859167, -75.858987, -75.858808, -75.858628, -75.858448, -75.858269, -75.858089, -75.857909, -75.857729, -75.85755, -75.85737, -75.85719, -75.856831, -75.856651, -75.856471, -75.856292, -75.856112, -75.855753, -75.855573, -75.855393, -75.855213, -75.855034, -75.854674, -75.854315, -75.853955, -75.853596, -75.853416, -75.853057, -75.852877, -75.852697, -75.852518, -75.851979, -75.851799, -75.851619, -75.851439, -75.85126, -75.85108, -75.8509, -75.850721, -75.850361, -75.849822, -75.849642, -75.849463, -75.849103];
+const UNIQUE_LATS = [1.3675, 1.36759, 1.367859, 1.367949, 1.368219, 1.368308];
+const LAT_SERIES  = {"1": "S2Ec1", "2": "S3Ec2", "4": "S5Ec3", "0": "S1Ec1", "3": "S4Ec2", "5": "S6Ec3"};
+
+// gi = índice en UNIQUE_LONS (eje X = longitud = E-W)
+// gj = índice en UNIQUE_LATS (eje Y = latitud  = N-S)
+
+// ── PALETA BOTÁNICA ──────────────────────────────────────────────────────────
+// Ec1 verde musgo · Ec2 siena/terracota · Ec3 ocre dorado
+// Fertilización: alta=saturado, media=medio, baja=muy pálido
+const EC_COLORS = {
+  1: { alta:'#4a6e3a', media:'#7a9e6a', baja:'#b8d4aa' },
+  2: { alta:'#7a4a2a', media:'#aa7a54', baja:'#d4b498' },
+  3: { alta:'#7a6a20', media:'#b0983c', baja:'#d8c87a' },
+};
+const EC_NAMES  = {1:'Ecotipo 1 (Verde musgo)', 2:'Ecotipo 2 (Siena)', 3:'Ecotipo 3 (Ocre)'};
+const FER_NAMES = {alta:'Alta', media:'Media', baja:'Baja'};
+
+let activeFilters = {
+  ec:     new Set(['1','2','3']),
+  ferti:  new Set(['alta','media','baja']),
+  bloque: new Set(['1','2','3'])
+};
+let hoveredTree = null;
+
+// ── CANVAS ───────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('mainCanvas');
+const ctx    = canvas.getContext('2d');
+let W = 0, H = 0;
+const PAD = { top:52, right:40, bottom:62, left:70 };
+
+function resizeCanvas() {
+  const area = canvas.parentElement;
+  W = area.clientWidth;
+  H = area.clientHeight;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  render(ctx, W, H);
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ── COORD NORMALIZADA → PIXEL ─────────────────────────────────────────────────
+// gi: 0..58 (59 posiciones lon) → X  (izq=oeste, der=este → lon sube = más derecha)
+// gj: 0..5  (6 posiciones lat)  → Y  (abajo=sur, arriba=norte → lat sube = más arriba)
+function toXY(gi, gj, w, h) {
+  w = w || W; h = h || H;
+  const nX = UNIQUE_LONS.length - 1;   // 58
+  const nY = UNIQUE_LATS.length - 1;   // 5
+  const dW = w - PAD.left - PAD.right;
+  const dH = h - PAD.top  - PAD.bottom;
+  const x  = PAD.left + (gi / nX) * dW;
+  const y  = PAD.top  + (1 - gj / nY) * dH;
+  return { x, y };
+}
+
+// Tamaño árbol: basado en el espacio disponible entre posiciones
+function treeSize(w, h) {
+  w = w || W; h = h || H;
+  const dW = w - PAD.left - PAD.right;
+  const dH = h - PAD.top  - PAD.bottom;
+  const stepX = dW / (UNIQUE_LONS.length - 1);
+  const stepY = dH / (UNIQUE_LATS.length - 1);
+  // Limitado por el paso más pequeño para no solapar
+  return Math.min(stepX * 0.42, stepY * 0.52);
+}
+
+// ── DIBUJO ÁRBOL ─────────────────────────────────────────────────────────────
+function drawTree(c, cx, cy, sz, crownCol, alpha) {
+  if (sz < 2) return;
+  c.save();
+  c.globalAlpha = alpha;
+
+  const tW = sz * 0.18;
+  const tH = sz * 0.28;
+  const cR = sz * 0.46;
+  const cY = cy - sz * 0.18;
+
+  // Sombra proyectada
+  c.beginPath();
+  c.ellipse(cx + sz*0.08, cy + sz*0.06, sz*0.32, sz*0.10, 0.3, 0, Math.PI*2);
+  c.fillStyle = 'rgba(80,55,25,0.12)';
+  c.fill();
+
+  // Tronco
+  c.beginPath();
+  c.roundRect(cx - tW/2, cy - tH*0.05, tW, tH, tW*0.3);
+  c.fillStyle = '#a07040';
+  c.fill();
+  // Veta del tronco
+  c.beginPath();
+  c.moveTo(cx - tW*0.05, cy + tH*0.05);
+  c.lineTo(cx - tW*0.05, cy + tH*0.85);
+  c.strokeStyle = 'rgba(255,220,160,0.3)';
+  c.lineWidth = tW * 0.2;
+  c.stroke();
+
+  // Copa trasera (sombra de copa)
+  c.beginPath();
+  c.arc(cx + sz*0.05, cY + sz*0.08, cR * 0.88, 0, Math.PI*2);
+  c.fillStyle = shade(crownCol, -28);
+  c.fill();
+
+  // Copa principal
+  c.beginPath();
+  c.arc(cx, cY, cR, 0, Math.PI*2);
+  c.fillStyle = crownCol;
+  c.fill();
+
+  // Copa secundaria (volumen izquierda)
+  c.beginPath();
+  c.arc(cx - cR*0.38, cY + cR*0.18, cR*0.62, 0, Math.PI*2);
+  c.fillStyle = shade(crownCol, 10);
+  c.fill();
+
+  // Copa terciaria (volumen derecha)
+  c.beginPath();
+  c.arc(cx + cR*0.32, cY + cR*0.22, cR*0.55, 0, Math.PI*2);
+  c.fillStyle = shade(crownCol, 5);
+  c.fill();
+
+  // Brillo superior
+  const gr = c.createRadialGradient(cx - cR*0.3, cY - cR*0.3, 0, cx, cY, cR*0.9);
+  gr.addColorStop(0, 'rgba(255,255,230,0.32)');
+  gr.addColorStop(0.5, 'rgba(255,255,230,0.06)');
+  gr.addColorStop(1, 'rgba(255,255,230,0)');
+  c.beginPath();
+  c.arc(cx, cY, cR, 0, Math.PI*2);
+  c.fillStyle = gr;
+  c.fill();
+
+  // Contorno copa suave
+  c.beginPath();
+  c.arc(cx, cY, cR, 0, Math.PI*2);
+  c.strokeStyle = shade(crownCol, -40);
+  c.lineWidth = 0.6;
+  c.stroke();
+
+  c.restore();
+}
+
+function shade(hex, amt) {
+  const n = parseInt(hex.replace('#',''), 16);
+  const r = Math.min(255, Math.max(0, (n>>16) + amt));
+  const g = Math.min(255, Math.max(0, ((n>>8)&0xff) + amt));
+  const b = Math.min(255, Math.max(0, (n&0xff) + amt));
+  return '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function isActive(r) {
+  return activeFilters.ec.has(String(r.ec)) &&
+         activeFilters.ferti.has(r.ferti) &&
+         activeFilters.bloque.has(String(r.bloque));
+}
+
+function render(c, w, h) {
+  c = c || ctx; w = w || W; h = h || H;
+  const isExport = (c !== ctx);
+  const bg = isExport ? '#ffffff' : '#f7f3ec';
+
+  const active = allRecords.filter(isActive);
+  const ghost  = allRecords.filter(r => !isActive(r));
+  const sz     = treeSize(w, h);
+
+  // Fondo
+  c.fillStyle = bg;
+  c.fillRect(0, 0, w, h);
+
+  // ── PUNTOS DE GRILLA (sin líneas, solo puntos tenues) ──
+  for (let gi = 0; gi < UNIQUE_LONS.length; gi++) {
+    for (let gj = 0; gj < UNIQUE_LATS.length; gj++) {
+      const {x, y} = toXY(gi, gj, w, h);
+      c.beginPath();
+      c.arc(x, y, 1.6, 0, Math.PI*2);
+      c.fillStyle = isExport ? 'rgba(160,140,100,0.30)' : 'rgba(160,140,100,0.35)';
+      c.fill();
+    }
+  }
+
+  // ── EJES ──
+  const dW = w - PAD.left - PAD.right;
+  const dH = h - PAD.top  - PAD.bottom;
+  const axColor = '#b0a080';
+
+  // Línea eje X (abajo)
+  c.beginPath();
+  c.moveTo(PAD.left, PAD.top + dH);
+  c.lineTo(PAD.left + dW, PAD.top + dH);
+  c.strokeStyle = axColor; c.lineWidth = 1; c.stroke();
+
+  // Línea eje Y (izquierda)
+  c.beginPath();
+  c.moveTo(PAD.left, PAD.top);
+  c.lineTo(PAD.left, PAD.top + dH);
+  c.strokeStyle = axColor; c.lineWidth = 1; c.stroke();
+
+  // Ticks y etiquetas eje X (longitud) — cada 5 posiciones
+  c.fillStyle = '#9a8870'; c.font = '9px Georgia,serif'; c.textAlign = 'center';
+  for (let gi = 0; gi < UNIQUE_LONS.length; gi += 5) {
+    const {x, y} = toXY(gi, 0, w, h);
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 4);
+    c.strokeStyle = axColor; c.lineWidth = 0.7; c.stroke();
+    c.fillText(`${gi+1}`, x, y + 13);
+  }
+
+  // Ticks y etiquetas eje Y (latitud = serie)
+  c.textAlign = 'right';
+  for (let gj = 0; gj < UNIQUE_LATS.length; gj++) {
+    const {x, y} = toXY(0, gj, w, h);
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x - 4, y);
+    c.strokeStyle = axColor; c.lineWidth = 0.7; c.stroke();
+    const label = LAT_SERIES[String(gj)] || `Col ${gj+1}`;
+    c.font = '8.5px Georgia,serif';
+    c.fillStyle = '#9a8870';
+    c.fillText(label, x - 7, y + 3);
+  }
+
+  // Nombre eje X
+  c.fillStyle = '#6a5a48'; c.font = 'italic 11px Georgia,serif'; c.textAlign = 'center';
+  c.fillText('Posición relativa en longitud (E → O)', PAD.left + dW/2, h - 8);
+
+  // Nombre eje Y
+  c.save();
+  c.translate(13, PAD.top + dH/2);
+  c.rotate(-Math.PI/2);
+  c.fillStyle = '#6a5a48'; c.font = 'italic 11px Georgia,serif'; c.textAlign = 'center';
+  c.fillText('Serie / Columna de inventario', 0, 0);
+  c.restore();
+
+  // Título
+  c.fillStyle = '#3a2e22'; c.font = 'italic bold 13px Georgia,serif'; c.textAlign = 'center';
+  c.fillText('Inventario Forestal — Posición de Árboles', w/2, 20);
+  c.fillStyle = '#9a8870'; c.font = '9.5px Georgia,serif';
+  c.fillText(getFilterText(), w/2, 36);
+
+  // ── ÁRBOLES FANTASMA ──
+  ghost.forEach(r => {
+    const {x, y} = toXY(r.gi, r.gj, w, h);
+    drawTree(c, x, y, sz, EC_COLORS[r.ec][r.ferti], 0.11);
+  });
+
+  // ── ÁRBOLES ACTIVOS ──
+  active.forEach(r => {
+    const {x, y} = toXY(r.gi, r.gj, w, h);
+    const col    = EC_COLORS[r.ec][r.ferti];
+    const isHov  = (hoveredTree === r);
+    drawTree(c, x, y, isHov ? sz * 1.28 : sz, col, 1.0);
+
+    // Etiqueta debajo
+    const lblSz = Math.max(7, sz * 0.42);
+    c.font = `${isHov ? 'bold ' : ''}${lblSz}px Georgia,serif`;
+    c.fillStyle = isHov ? '#3a2e22' : shade(col, -20);
+    c.textAlign = 'center';
+    c.fillText(r.etiqueta, x, y + sz * 0.6 + lblSz + 1);
+  });
+
+  if (c === ctx) { updateStats(active, ghost); updateLegend(active); updateFilterSummary(); }
+}
+
+// ── HOVER ─────────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const sz = treeSize();
+  const active = allRecords.filter(isActive);
+  let found = null, minD = sz * 1.2;
+  active.forEach(r => {
+    const {x, y} = toXY(r.gi, r.gj);
+    const d = Math.hypot(mx - x, my - y);
+    if (d < minD) { minD = d; found = r; }
+  });
+  hoveredTree = found;
+  render(ctx, W, H);
+  const tt = document.getElementById('tooltip');
+  if (found) {
+    const col = EC_COLORS[found.ec][found.ferti];
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top  = (e.clientY - 10) + 'px';
+    tt.innerHTML = `
+      <div class="tt-title" style="color:${shade(col,-20)}">🌿 ${found.etiqueta}</div>
+      <div class="tt-row"><span>Ecotipo</span><span>${found.ec}</span></div>
+      <div class="tt-row"><span>Bloque</span><span>${found.bloque}</span></div>
+      <div class="tt-row"><span>Árbol</span><span>${found.arbol}</span></div>
+      <div class="tt-row"><span>Fertilización</span><span style="color:${shade(col,-20)};font-weight:700">${FER_NAMES[found.ferti]}</span></div>
+      <div class="tt-row"><span>Altitud</span><span>${found.altitud ? found.altitud+'m' : '—'}</span></div>
+      <div class="tt-row"><span>Serie</span><span>${found.serie}</span></div>
+      <div class="tt-row"><span>Fila / Col</span><span>${found.fila} / ${found.col}</span></div>
+      <div class="tt-row"><span>Lat</span><span>${found.lat.toFixed(6)}</span></div>
+      <div class="tt-row"><span>Lon</span><span>${found.lon.toFixed(6)}</span></div>`;
+  } else { tt.style.display = 'none'; }
+});
+canvas.addEventListener('mouseleave', () => {
+  hoveredTree = null;
+  document.getElementById('tooltip').style.display = 'none';
+  render(ctx, W, H);
+});
+
+// ── FILTROS ───────────────────────────────────────────────────────────────────
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const type = chip.dataset.type, val = chip.dataset.val;
+    const set = activeFilters[type];
+    if (set.has(val)) { if (set.size > 1) { set.delete(val); chip.classList.remove('active'); } }
+    else { set.add(val); chip.classList.add('active'); }
+    render(ctx, W, H);
+  });
+});
+function resetFilters() {
+  activeFilters = { ec:new Set(['1','2','3']), ferti:new Set(['alta','media','baja']), bloque:new Set(['1','2','3']) };
+  document.querySelectorAll('.chip').forEach(c => c.classList.add('active'));
+  render(ctx, W, H);
+}
+function getFilterText() {
+  const ec = [...activeFilters.ec].map(v=>'Ec'+v).join(', ');
+  const fe = [...activeFilters.ferti].map(v=>FER_NAMES[v]).join(', ');
+  const bl = [...activeFilters.bloque].map(v=>'B'+v).join(', ');
+  return `${ec}  ·  ${fe}  ·  ${bl}`;
+}
+function updateFilterSummary() { document.getElementById('filterSummary').textContent = getFilterText(); }
+function updateStats(active, ghost) {
+  document.getElementById('statVisible').textContent = active.length;
+  document.getElementById('statTotal').textContent   = allRecords.length;
+  document.getElementById('statGhost').textContent   = ghost.length;
+  const alts = active.filter(r=>r.altitud).map(r=>r.altitud);
+  document.getElementById('statAlt').textContent = alts.length
+    ? (alts.reduce((a,b)=>a+b,0)/alts.length).toFixed(1)+'m' : '—';
+}
+function updateLegend(active) {
+  const shown = new Set(active.map(r=>`${r.ec}_${r.ferti}`));
+  let html = '';
+  [1,2,3].forEach(ec => ['alta','media','baja'].forEach(fer => {
+    if (!shown.has(`${ec}_${fer}`)) return;
+    const col = EC_COLORS[ec][fer];
+    html += `<div class="legend-item">
+      <svg class="legend-tree" viewBox="0 0 18 24">
+        <rect x="7.5" y="16" width="3" height="7" rx="1" fill="#a07040"/>
+        <circle cx="9" cy="11" r="8" fill="${shade(col,-25)}"/>
+        <circle cx="9" cy="9.5" r="8" fill="${col}"/>
+        <circle cx="6.5" cy="10.5" r="4.5" fill="${shade(col,8)}" opacity="0.7"/>
+      </svg>
+      <span>Ec${ec} · ${FER_NAMES[fer]}</span>
+    </div>`;
+  }));
+  document.getElementById('legendContainer').innerHTML =
+    html || '<span style="font-size:11px;color:#b0a080">Sin datos</span>';
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+function exportPNG(mode) {
+  const SCALE = 3;
+  const off = document.createElement('canvas');
+  off.width = W * SCALE; off.height = H * SCALE;
+  const oc = off.getContext('2d');
+  oc.scale(SCALE, SCALE);
+  const saved = { ec:new Set(activeFilters.ec), ferti:new Set(activeFilters.ferti), bloque:new Set(activeFilters.bloque) };
+  if (mode === 'all') activeFilters = { ec:new Set(['1','2','3']), ferti:new Set(['alta','media','baja']), bloque:new Set(['1','2','3']) };
+  render(oc, W, H);
+  activeFilters = saved;
+  off.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = mode === 'all' ? 'mapa_completo.png' : 'mapa_filtrado.png';
+    a.click();
+  }, 'image/png');
+}
+
+// ── FILE UPLOAD ───────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets['Cruce_Final'];
+      if (!ws) { alert('No se encontró la hoja "Cruce_Final"'); return; }
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1});
+      const headers = raw[1];
+      const idx = {};
+      headers.forEach((h,i)=>{ if(h) idx[String(h).trim()]=i; });
+      const newRecs = [];
+      for (let r=2; r<raw.length; r++) {
+        const row = raw[r]; if (!row||!row.length) continue;
+        const lat = parseFloat(row[idx['Latitud Calc.']]);
+        const lon = parseFloat(row[idx['Longitud Calc.']]);
+        if (isNaN(lat)||isNaN(lon)) continue;
+        const gi = UNIQUE_LONS.findIndex(v=>Math.abs(v-lon)<0.0000001);
+        const gj = UNIQUE_LATS.findIndex(v=>Math.abs(v-lat)<0.0000001);
+        newRecs.push({
+          ec: parseInt(row[idx['Ecotipo']]), bloque: parseInt(row[idx['Bloque']]),
+          arbol: parseInt(row[idx['Árbol']]), etiqueta: String(row[idx['Etiqueta']]||''),
+          ferti: String(row[idx['Fertilización']]||'').trim().toLowerCase(),
+          altitud: parseFloat(row[idx['Altitud (m)']]) || null,
+          lat, lon, serie: String(row[idx['Serie']]||''),
+          fila: parseInt(row[idx['Pos. Fila']]), col: parseInt(row[idx['Pos. Col.']]),
+          gi: gi>=0?gi:0, gj: gj>=0?gj:0
+        });
+      }
+      allRecords = newRecs;
+      document.getElementById('uploadZone').classList.add('loaded');
+      document.getElementById('uploadZone').querySelector('p').innerHTML = `<strong>${file.name}</strong><br>${allRecords.length} árboles`;
+      document.getElementById('loadStatus').textContent = '✅ Cargado correctamente';
+      render(ctx, W, H);
+    } catch(err) { alert('Error: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+window.addEventListener('load', resizeCanvas);
+</script>
+</body>
+</html>
