@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mapa de Árboles — Inventario Forestal</title>
 <style>
 * { box-sizing:border-box; margin:0; padding:0; }
@@ -10,16 +11,20 @@ body {
   background: #f7f3ec;
   color: #3a2e22;
   min-height: 100vh;
+  display: flex; flex-direction: column;
+  -webkit-text-size-adjust: 100%;
 }
 header {
   background: #ede4d0;
   border-bottom: 2px solid #c8b99a;
   padding: 12px 24px;
   display: flex; align-items: center; gap: 14px;
+  flex-shrink: 0;
 }
+header svg { flex-shrink: 0; }
 header h1 { font-size: 16px; font-weight: normal; color: #3a2e22; letter-spacing: 0.5px; font-style: italic; }
 header span { font-size: 11px; color: #8a7a62; }
-.app { display: flex; height: calc(100vh - 52px); }
+.app { display: flex; flex: 1; min-height: 0; }
 
 /* SIDEBAR */
 .sidebar {
@@ -104,28 +109,79 @@ header span { font-size: 11px; color: #8a7a62; }
 
 /* Canvas */
 .canvas-area {
-  flex:1; overflow:hidden; background:#f7f3ec;
+  flex:1; min-width:0; min-height:0; overflow:hidden; background:#f7f3ec;
   display:flex; flex-direction:column;
 }
 .canvas-toolbar {
   background:#ede4d0; border-bottom:1px solid #d4c8b0;
-  padding:7px 16px; display:flex; align-items:center; gap:10px;
+  padding:7px 16px; display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px;
   font-size:11px; color:#9a8870; font-family:'Segoe UI',Arial,sans-serif;
 }
 .filter-summary { color:#5a7a4a; font-weight:bold; }
-#mainCanvas { flex:1; width:100%; height:100%; cursor:crosshair; }
+.toolbar-hints { margin-left:auto; display:flex; flex-wrap:wrap; gap:4px 12px; }
+.scroll-hint { display:none; color:#5a7a4a; }
+.canvas-area.is-scrollable .scroll-hint { display:inline; }
+.hint-touch { display:none; }
+@media (hover: none) {
+  .hint-mouse { display:none; }
+  .hint-touch { display:inline; }
+}
+.canvas-scroll { flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; }
+#mainCanvas {
+  display:block; cursor:crosshair;
+  touch-action:pan-x pan-y; -webkit-tap-highlight-color:transparent;
+}
 
 /* Tooltip */
 #tooltip {
-  position:fixed; display:none;
+  position:fixed; display:none; top:0; left:0;
   background:#f7f0e2; border:1px solid #c0ad90; border-radius:5px;
   padding:10px 14px; font-size:11px; pointer-events:none; z-index:100;
   box-shadow:0 4px 16px rgba(80,60,30,0.18); min-width:155px;
+  max-width:calc(100vw - 16px);
   font-family:'Segoe UI',Arial,sans-serif;
 }
 #tooltip .tt-title { font-weight:bold; font-size:13px; color:#3a2e22; margin-bottom:6px; font-family:'Georgia',serif; }
-#tooltip .tt-row { display:flex; justify-content:space-between; gap:12px; color:#9a8870; margin-bottom:2px; }
+#tooltip .tt-row { display:flex; justify-content:space-between; gap:12px; color:#9a8870; margin-bottom:2px; white-space:nowrap; }
 #tooltip .tt-row span:last-child { color:#3a2e22; font-weight:600; }
+/* Flecha que apunta al árbol */
+#tooltip.above::after, #tooltip.below::after {
+  content:''; position:absolute; left:var(--arrow-x, 50%);
+  width:10px; height:10px; background:#f7f0e2; border:1px solid #c0ad90;
+  transform:translateX(-50%) rotate(45deg);
+}
+#tooltip.below::after { top:-6px; border-right:none; border-bottom:none; }
+#tooltip.above::after { bottom:-6px; border-left:none; border-top:none; }
+
+/* ── RESPONSIVE ── */
+/* Computador: la página ocupa la ventana; barra lateral y mapa se desplazan por separado */
+@media (min-width: 821px) and (min-height: 501px) {
+  body { height:100vh; height:100dvh; overflow:hidden; }
+}
+@media (min-width: 821px) and (max-width: 1100px) and (min-height: 501px) {
+  .sidebar { width:232px; min-width:232px; }
+}
+/* Celular y tablet vertical: mapa arriba, controles debajo */
+@media (max-width: 820px), (max-height: 500px) {
+  header { padding:10px 14px; gap:10px; }
+  header h1 { font-size:15px; }
+  .app { flex-direction:column; flex:none; }
+  .canvas-area { order:-1; flex:none; overflow:visible; border-bottom:1px solid #d4c8b0; }
+  .canvas-toolbar { padding:7px 14px; }
+  .toolbar-hints { margin-left:0; width:100%; }
+  .canvas-scroll { flex:none; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; }
+  .sidebar {
+    width:100%; min-width:0; border-right:none; overflow:visible;
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+/* Pantallas táctiles: botones más fáciles de tocar */
+@media (pointer: coarse) {
+  .chip { padding:7px 14px; font-size:12px; }
+  .btn-reset { padding:10px; font-size:12px; }
+  .btn-export { padding:11px 12px; font-size:12px; }
+  .upload-zone { padding:16px; }
+}
 </style>
 </head>
 <body>
@@ -211,9 +267,15 @@ header span { font-size: 11px; color: #8a7a62; }
   <div class="canvas-toolbar">
     <span>Filtro:</span>
     <span class="filter-summary" id="filterSummary">Todos</span>
-    <span style="margin-left:auto">Pasa el cursor sobre un árbol para ver detalles</span>
+    <span class="toolbar-hints">
+      <span class="scroll-hint">↔ Desliza para recorrer el mapa</span>
+      <span class="hint-mouse">Pasa el cursor o haz clic sobre un árbol para ver detalles</span>
+      <span class="hint-touch">Toca un árbol para ver detalles</span>
+    </span>
   </div>
-  <canvas id="mainCanvas"></canvas>
+  <div class="canvas-scroll" id="canvasScroll">
+    <canvas id="mainCanvas"></canvas>
+  </div>
 </div>
 </div>
 
@@ -227,9 +289,6 @@ allRecords = allRecords.filter(r => r.ferti === 'alta');
 const UNIQUE_LONS = [-75.862222, -75.861863, -75.861683, -75.861503, -75.861324, -75.861144, -75.860964, -75.860785, -75.860605, -75.860425, -75.860245, -75.860066, -75.859886, -75.859706, -75.859347, -75.859167, -75.858987, -75.858808, -75.858628, -75.858448, -75.858269, -75.858089, -75.857909, -75.857729, -75.85755, -75.85737, -75.85719, -75.856831, -75.856651, -75.856471, -75.856292, -75.856112, -75.855753, -75.855573, -75.855393, -75.855213, -75.855034, -75.854674, -75.854315, -75.853955, -75.853596, -75.853416, -75.853057, -75.852877, -75.852697, -75.852518, -75.851979, -75.851799, -75.851619, -75.851439, -75.85126, -75.85108, -75.8509, -75.850721, -75.850361, -75.849822, -75.849642, -75.849463, -75.849103];
 const UNIQUE_LATS = [1.3675, 1.36759, 1.367859, 1.367949, 1.368219, 1.368308];
 const LAT_SERIES  = {"1": "S2Ec1", "2": "S3Ec2", "4": "S5Ec3", "0": "S1Ec1", "3": "S4Ec2", "5": "S6Ec3"};
-
-// gi = índice en UNIQUE_LONS (eje X = longitud = E-W)
-// gj = índice en UNIQUE_LATS (eje Y = latitud  = N-S)
 
 // ── PALETA BOTÁNICA ──────────────────────────────────────────────────────────
 // Ec1 verde musgo · Ec2 siena/terracota · Ec3 ocre dorado
@@ -249,48 +308,94 @@ let activeFilters = {
 };
 let hoveredTree = null;
 
+let pinnedTree  = null;   // árbol seleccionado con clic o toque
+let tooltipTree = null;
+let lastPointerType = 'mouse';
+
 // ── CANVAS ───────────────────────────────────────────────────────────────────
-const canvas = document.getElementById('mainCanvas');
-const ctx    = canvas.getContext('2d');
-let W = 0, H = 0;
-const PAD = { top:52, right:40, bottom:62, left:70 };
+const canvas     = document.getElementById('mainCanvas');
+const ctx        = canvas.getContext('2d');
+const scrollBox  = document.getElementById('canvasScroll');
+const canvasArea = document.querySelector('.canvas-area');
+const tooltip    = document.getElementById('tooltip');
+let W = 0, H = 0, DPR = 1;
+const PAD  = { top:58, right:24, bottom:76, left:72 };
+const AXIS = { gapX:12, gapY:22 };   // separación entre los ejes y los árboles
+const NX  = UNIQUE_LONS.length - 1;   // pasos en longitud
+const NY  = UNIQUE_LATS.length - 1;   // pasos en latitud
+
+// Espaciado entre posiciones (px). Ajusta estos valores para compactar o separar el mapa.
+const SPACING = {
+  xMin: 12,           // paso horizontal mínimo; si no cabe, el mapa se desliza horizontalmente
+  xMinPhone: 14,      // paso mínimo en celulares (< 600 px), para árboles más fáciles de ver
+  xMax: 26,           // paso horizontal máximo en pantallas grandes
+  yRatioMin: 2.2,     // alto de fila = paso horizontal × valor entre yRatioMin y yRatioMax
+  yRatioMax: 2.8,
+  yRatioMobile: 2.4   // alto de fila en celulares y tablets verticales
+};
+function minStepX() { return window.innerWidth < 600 ? SPACING.xMinPhone : SPACING.xMin; }
+const MOBILE_QUERY = window.matchMedia('(max-width: 820px), (max-height: 500px)');
+
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+// Grilla compacta y centrada para un lienzo de w × h
+function getLayout(w, h) {
+  const stepX = clamp((w - PAD.left - PAD.right) / NX, minStepX(), SPACING.xMax);
+  const stepY = clamp((h - PAD.top - PAD.bottom) / NY, stepX * SPACING.yRatioMin, stepX * SPACING.yRatioMax);
+  const plotW = NX * stepX;
+  const plotH = NY * stepY;
+  const ox = PAD.left + Math.max(0, (w - plotW - PAD.left - PAD.right) / 2);
+  const oy = PAD.top  + Math.max(0, (h - plotH - PAD.top  - PAD.bottom) / 2);
+  const sz = Math.min(stepX * 0.62, stepY * 0.45);
+  return { stepX, stepY, plotW, plotH, ox, oy, sz };
+}
+
+// gi = índice en UNIQUE_LONS (eje X = longitud = E-W)
+// gj = índice en UNIQUE_LATS (eje Y = latitud  = N-S)
+function toXY(gi, gj, L) {
+  return { x: L.ox + gi * L.stepX, y: L.oy + (NY - gj) * L.stepY };
+}
+
+let scrollbarPx = null;
+function getScrollbarSize() {
+  if (scrollbarPx === null) {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll;';
+    document.body.appendChild(d);
+    scrollbarPx = d.offsetHeight - d.clientHeight;
+    d.remove();
+  }
+  return scrollbarPx;
+}
 
 function resizeCanvas() {
-  const area = canvas.parentElement;
-  W = area.clientWidth;
-  H = area.clientHeight;
-  canvas.width  = W * devicePixelRatio;
-  canvas.height = H * devicePixelRatio;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-  render(ctx, W, H);
-}
-window.addEventListener('resize', resizeCanvas);
-
-// ── COORD NORMALIZADA → PIXEL ─────────────────────────────────────────────────
-// gi: 0..58 (59 posiciones lon) → X  (izq=oeste, der=este → lon sube = más derecha)
-// gj: 0..5  (6 posiciones lat)  → Y  (abajo=sur, arriba=norte → lat sube = más arriba)
-function toXY(gi, gj, w, h) {
-  w = w || W; h = h || H;
-  const nX = UNIQUE_LONS.length - 1;   // 58
-  const nY = UNIQUE_LATS.length - 1;   // 5
-  const dW = w - PAD.left - PAD.right;
-  const dH = h - PAD.top  - PAD.bottom;
-  const x  = PAD.left + (gi / nX) * dW;
-  const y  = PAD.top  + (1 - gj / nY) * dH;
-  return { x, y };
-}
-
-// Tamaño árbol: basado en el espacio disponible entre posiciones
-function treeSize(w, h) {
-  w = w || W; h = h || H;
-  const dW = w - PAD.left - PAD.right;
-  const dH = h - PAD.top  - PAD.bottom;
-  const stepX = dW / (UNIQUE_LONS.length - 1);
-  const stepY = dH / (UNIQUE_LATS.length - 1);
-  // Limitado por el paso más pequeño para no solapar
-  return Math.min(stepX * 0.42, stepY * 0.52);
+  const mobile = MOBILE_QUERY.matches;
+  // Se colapsa el lienzo un instante para medir el espacio disponible
+  canvas.style.width = '0px';
+  if (!mobile) canvas.style.height = '0px';
+  const boxW = scrollBox.clientWidth;
+  const minW = Math.ceil(NX * minStepX() + PAD.left + PAD.right);
+  const newW = Math.max(boxW, minW);
+  canvasArea.classList.toggle('is-scrollable', newW > boxW + 1);
+  const stepX = clamp((newW - PAD.left - PAD.right) / NX, minStepX(), SPACING.xMax);
+  let newH;
+  if (mobile) {
+    newH = Math.ceil(NY * stepX * SPACING.yRatioMobile + PAD.top + PAD.bottom);
+  } else {
+    let boxH = scrollBox.clientHeight;
+    if (newW > boxW) boxH -= getScrollbarSize();
+    newH = Math.max(boxH, Math.ceil(NY * stepX * SPACING.yRatioMin + PAD.top + PAD.bottom));
+  }
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width  = newW + 'px';
+  canvas.style.height = newH + 'px';
+  if (newW !== W || newH !== H || dpr !== DPR) {
+    W = newW; H = newH; DPR = dpr;
+    canvas.width  = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  refresh();
 }
 
 // ── DIBUJO ÁRBOL ─────────────────────────────────────────────────────────────
@@ -312,7 +417,8 @@ function drawTree(c, cx, cy, sz, crownCol, alpha) {
 
   // Tronco
   c.beginPath();
-  c.roundRect(cx - tW/2, cy - tH*0.05, tW, tH, tW*0.3);
+  if (c.roundRect) c.roundRect(cx - tW/2, cy - tH*0.05, tW, tH, tW*0.3);
+  else c.rect(cx - tW/2, cy - tH*0.05, tW, tH);
   c.fillStyle = '#a07040';
   c.fill();
   // Veta del tronco
@@ -382,14 +488,29 @@ function isActive(r) {
          activeFilters.bloque.has(String(r.bloque));
 }
 
+// Borde de la franja fija del eje Y cuando el mapa está deslizado horizontalmente
+function stickyEdge(L) {
+  const left = scrollBox.scrollLeft;
+  return (left + PAD.left > L.ox) ? left + PAD.left - AXIS.gapX : -Infinity;
+}
+
 function render(c, w, h) {
   c = c || ctx; w = w || W; h = h || H;
   const isExport = (c !== ctx);
   const bg = isExport ? '#ffffff' : '#f7f3ec';
+  const L  = getLayout(w, h);
+  const sz = L.sz;
+  const dW = L.plotW, dH = L.plotH;
+
+  // Zona visible (en pantallas pequeñas el mapa se desliza horizontalmente)
+  const viewX = isExport ? 0 : scrollBox.scrollLeft;
+  const viewW = isExport ? w : Math.min(w, scrollBox.clientWidth || w);
+  const scrollable = !isExport && w > viewW + 1;
+  const centerX = scrollable ? viewX + (PAD.left + viewW) / 2 : L.ox + dW / 2;
+  const shownTree = isExport ? null : (hoveredTree || pinnedTree);
 
   const active = allRecords.filter(isActive);
   const ghost  = allRecords.filter(r => !isActive(r));
-  const sz     = treeSize(w, h);
 
   // Fondo
   c.fillStyle = bg;
@@ -398,81 +519,60 @@ function render(c, w, h) {
   // ── PUNTOS DE GRILLA (sin líneas, solo puntos tenues) ──
   for (let gi = 0; gi < UNIQUE_LONS.length; gi++) {
     for (let gj = 0; gj < UNIQUE_LATS.length; gj++) {
-      const {x, y} = toXY(gi, gj, w, h);
+      const {x, y} = toXY(gi, gj, L);
       c.beginPath();
-      c.arc(x, y, 1.6, 0, Math.PI*2);
+      c.arc(x, y, 1.5, 0, Math.PI*2);
       c.fillStyle = isExport ? 'rgba(160,140,100,0.30)' : 'rgba(160,140,100,0.35)';
       c.fill();
     }
   }
 
-  // ── EJES ──
-  const dW = w - PAD.left - PAD.right;
-  const dH = h - PAD.top  - PAD.bottom;
+  // ── EJES ── (separados de los árboles para que etiquetas y números no se crucen)
   const axColor = '#b0a080';
+  const axisY = L.oy + dH + AXIS.gapY;
 
   // Línea eje X (abajo)
   c.beginPath();
-  c.moveTo(PAD.left, PAD.top + dH);
-  c.lineTo(PAD.left + dW, PAD.top + dH);
-  c.strokeStyle = axColor; c.lineWidth = 1; c.stroke();
-
-  // Línea eje Y (izquierda)
-  c.beginPath();
-  c.moveTo(PAD.left, PAD.top);
-  c.lineTo(PAD.left, PAD.top + dH);
+  c.moveTo(L.ox - AXIS.gapX, axisY);
+  c.lineTo(L.ox + dW + AXIS.gapX / 2, axisY);
   c.strokeStyle = axColor; c.lineWidth = 1; c.stroke();
 
   // Ticks y etiquetas eje X (longitud) — cada 5 posiciones
   c.fillStyle = '#9a8870'; c.font = '9px Georgia,serif'; c.textAlign = 'center';
   for (let gi = 0; gi < UNIQUE_LONS.length; gi += 5) {
-    const {x, y} = toXY(gi, 0, w, h);
-    c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 4);
+    const {x} = toXY(gi, 0, L);
+    c.beginPath(); c.moveTo(x, axisY); c.lineTo(x, axisY + 4);
     c.strokeStyle = axColor; c.lineWidth = 0.7; c.stroke();
-    c.fillText(`${gi+1}`, x, y + 13);
-  }
-
-  // Ticks y etiquetas eje Y (latitud = serie)
-  c.textAlign = 'right';
-  for (let gj = 0; gj < UNIQUE_LATS.length; gj++) {
-    const {x, y} = toXY(0, gj, w, h);
-    c.beginPath(); c.moveTo(x, y); c.lineTo(x - 4, y);
-    c.strokeStyle = axColor; c.lineWidth = 0.7; c.stroke();
-    const label = LAT_SERIES[String(gj)] || `Col ${gj+1}`;
-    c.font = '8.5px Georgia,serif';
-    c.fillStyle = '#9a8870';
-    c.fillText(label, x - 7, y + 3);
+    c.fillText(`${gi+1}`, x, axisY + 13);
   }
 
   // Nombre eje X
   c.fillStyle = '#6a5a48'; c.font = 'italic 11px Georgia,serif'; c.textAlign = 'center';
-  c.fillText('Posición relativa en longitud (E → O)', PAD.left + dW/2, h - 8);
-
-  // Nombre eje Y
-  c.save();
-  c.translate(13, PAD.top + dH/2);
-  c.rotate(-Math.PI/2);
-  c.fillStyle = '#6a5a48'; c.font = 'italic 11px Georgia,serif'; c.textAlign = 'center';
-  c.fillText('Serie / Columna de inventario', 0, 0);
-  c.restore();
-
-  // Título
-  c.fillStyle = '#3a2e22'; c.font = 'italic bold 13px Georgia,serif'; c.textAlign = 'center';
-  c.fillText('Inventario Forestal — Posición de Árboles', w/2, 20);
-  c.fillStyle = '#9a8870'; c.font = '9.5px Georgia,serif';
-  c.fillText(getFilterText(), w/2, 36);
+  c.fillText('Posición relativa en longitud (E → O)', centerX, axisY + 40);
 
   // ── ÁRBOLES FANTASMA ──
   ghost.forEach(r => {
-    const {x, y} = toXY(r.gi, r.gj, w, h);
+    const {x, y} = toXY(r.gi, r.gj, L);
     drawTree(c, x, y, sz, EC_COLORS[r.ec][r.ferti], 0.11);
+  });
+
+  // Si dos árboles quedan contiguos en la misma fila, la etiqueta del segundo va arriba
+  const labelAbove = new Set();
+  const byRow = {};
+  active.forEach(r => (byRow[r.gj] = byRow[r.gj] || []).push(r));
+  Object.values(byRow).forEach(row => {
+    row.sort((a, b) => a.gi - b.gi);
+    row.forEach((r, i) => {
+      const prev = row[i - 1];
+      if (prev && r.gi - prev.gi === 1 && !labelAbove.has(prev)) labelAbove.add(r);
+    });
   });
 
   // ── ÁRBOLES ACTIVOS ──
   active.forEach(r => {
-    const {x, y} = toXY(r.gi, r.gj, w, h);
+    const {x, y} = toXY(r.gi, r.gj, L);
     const col    = EC_COLORS[r.ec][r.ferti];
-    const isHov  = (hoveredTree === r);
+    const isHov  = (shownTree === r);
     drawTree(c, x, y, isHov ? sz * 1.28 : sz, col, 1.0);
 
     // Etiqueta debajo
@@ -480,51 +580,188 @@ function render(c, w, h) {
     c.font = `${isHov ? 'bold ' : ''}${lblSz}px Georgia,serif`;
     c.fillStyle = isHov ? '#3a2e22' : shade(col, -20);
     c.textAlign = 'center';
-    c.fillText(r.etiqueta, x, y + sz * 0.6 + lblSz + 1);
+    const drawn = isHov ? sz * 1.28 : sz;
+    const ly = labelAbove.has(r) ? y - drawn * 0.66 - 3 : y + sz * 0.6 + lblSz + 1;
+    c.fillText(r.etiqueta, x, ly);
   });
 
-  if (c === ctx) { updateStats(active, ghost); updateLegend(active); updateFilterSummary(); }
+  // ── EJE Y: se mantiene visible al deslizar el mapa ──
+  const axisX = (isExport ? L.ox : Math.max(L.ox, viewX + PAD.left)) - AXIS.gapX;
+  if (!isExport && axisX + AXIS.gapX > L.ox) {
+    c.fillStyle = '#f7f3ec';
+    c.fillRect(viewX, 0, axisX - viewX, h);
+  }
+  c.beginPath();
+  c.moveTo(axisX, L.oy - 6); c.lineTo(axisX, axisY);
+  c.strokeStyle = axColor; c.lineWidth = 1; c.stroke();
+
+  // Ticks y etiquetas eje Y (latitud = serie)
+  c.textAlign = 'right';
+  for (let gj = 0; gj < UNIQUE_LATS.length; gj++) {
+    const {y} = toXY(0, gj, L);
+    c.beginPath(); c.moveTo(axisX, y); c.lineTo(axisX - 4, y);
+    c.strokeStyle = axColor; c.lineWidth = 0.7; c.stroke();
+    const label = LAT_SERIES[String(gj)] || `Col ${gj+1}`;
+    c.font = '8.5px Georgia,serif';
+    c.fillStyle = '#9a8870';
+    c.fillText(label, axisX - 7, y + 3);
+  }
+
+  // Nombre eje Y
+  c.save();
+  c.translate(axisX - 50, L.oy + dH/2);
+  c.rotate(-Math.PI/2);
+  c.fillStyle = '#6a5a48'; c.font = 'italic 11px Georgia,serif'; c.textAlign = 'center';
+  c.fillText('Serie / Columna de inventario', 0, 0);
+  c.restore();
+
+  // Título
+  c.fillStyle = '#3a2e22'; c.font = 'italic bold 13px Georgia,serif'; c.textAlign = 'center';
+  c.fillText('Inventario Forestal — Posición de Árboles', centerX, L.oy - 38);
+  c.fillStyle = '#9a8870'; c.font = '9.5px Georgia,serif';
+  c.fillText(getFilterText(), centerX, L.oy - 22);
+
+  if (!isExport) { updateStats(active, ghost); updateLegend(active); updateFilterSummary(); }
 }
 
-// ── HOVER ─────────────────────────────────────────────────────────────────────
-canvas.addEventListener('mousemove', e => {
+// ── INFORMACIÓN DEL ÁRBOL (cursor, clic o toque) ─────────────────────────────
+function findTreeAt(clientX, clientY, pointerType) {
   const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  const sz = treeSize();
-  const active = allRecords.filter(isActive);
-  let found = null, minD = sz * 1.2;
-  active.forEach(r => {
-    const {x, y} = toXY(r.gi, r.gj);
-    const d = Math.hypot(mx - x, my - y);
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  const L = getLayout(W, H);
+  const edge = stickyEdge(L);
+  let found = null;
+  let minD = Math.max(L.sz * 1.1, pointerType === 'mouse' ? 10 : 22);
+  allRecords.filter(isActive).forEach(r => {
+    const {x, y} = toXY(r.gi, r.gj, L);
+    if (x < edge) return;
+    const d = Math.hypot(mx - x, my - (y - L.sz * 0.2));
     if (d < minD) { minD = d; found = r; }
   });
-  hoveredTree = found;
-  render(ctx, W, H);
-  const tt = document.getElementById('tooltip');
-  if (found) {
-    const col = EC_COLORS[found.ec][found.ferti];
-    tt.style.display = 'block';
-    tt.style.left = (e.clientX + 14) + 'px';
-    tt.style.top  = (e.clientY - 10) + 'px';
-    tt.innerHTML = `
-      <div class="tt-title" style="color:${shade(col,-20)}">🌿 ${found.etiqueta}</div>
-      <div class="tt-row"><span>Ecotipo</span><span>${found.ec}</span></div>
-      <div class="tt-row"><span>Bloque</span><span>${found.bloque}</span></div>
-      <div class="tt-row"><span>Árbol</span><span>${found.arbol}</span></div>
-      <div class="tt-row"><span>Fertilización</span><span style="color:${shade(col,-20)};font-weight:700">${FER_NAMES[found.ferti]}</span></div>
-      <div class="tt-row"><span>Altitud</span><span>${found.altitud ? found.altitud+'m' : '—'}</span></div>
-      <div class="tt-row"><span>Serie</span><span>${found.serie}</span></div>
-      <div class="tt-row"><span>Fila / Col</span><span>${found.fila} / ${found.col}</span></div>
-      <div class="tt-row"><span>Lat</span><span>${found.lat.toFixed(6)}</span></div>
-      <div class="tt-row"><span>Lon</span><span>${found.lon.toFixed(6)}</span></div>`;
-  } else { tt.style.display = 'none'; }
+  return found;
+}
+
+function tooltipHTML(t) {
+  const col = EC_COLORS[t.ec][t.ferti];
+  return `
+      <div class="tt-title" style="color:${shade(col,-20)}">🌿 ${t.etiqueta}</div>
+      <div class="tt-row"><span>Ecotipo</span><span>${t.ec}</span></div>
+      <div class="tt-row"><span>Bloque</span><span>${t.bloque}</span></div>
+      <div class="tt-row"><span>Árbol</span><span>${t.arbol}</span></div>
+      <div class="tt-row"><span>Fertilización</span><span style="color:${shade(col,-20)};font-weight:700">${FER_NAMES[t.ferti]}</span></div>
+      <div class="tt-row"><span>Altitud</span><span>${t.altitud ? t.altitud+'m' : '—'}</span></div>
+      <div class="tt-row"><span>Serie</span><span>${t.serie}</span></div>
+      <div class="tt-row"><span>Fila / Col</span><span>${t.fila} / ${t.col}</span></div>
+      <div class="tt-row"><span>Lat</span><span>${t.lat.toFixed(6)}</span></div>
+      <div class="tt-row"><span>Lon</span><span>${t.lon.toFixed(6)}</span></div>`;
+}
+
+function hideTooltip() { tooltip.style.display = 'none'; }
+
+// Ubica el recuadro junto al árbol: debajo si cabe, arriba si el árbol está muy abajo,
+// y siempre dentro de la pantalla
+function updateTooltip() {
+  const tree = hoveredTree || pinnedTree;
+  if (!tree || !isActive(tree) || !W) { hideTooltip(); return; }
+
+  const L = getLayout(W, H);
+  const {x, y} = toXY(tree.gi, tree.gj, L);
+  const cRect = canvas.getBoundingClientRect();
+  const bRect = scrollBox.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  const vh = window.innerHeight;
+  const ax = cRect.left + x;
+  const ay = cRect.top + y;
+
+  // Si el árbol quedó fuera de la vista, el recuadro se oculta hasta que vuelva a verse
+  if (x < stickyEdge(L) ||
+      ax < Math.max(bRect.left, 0) || ax > Math.min(bRect.right, vw) ||
+      ay < Math.max(bRect.top, 0)  || ay > Math.min(bRect.bottom, vh)) { hideTooltip(); return; }
+
+  if (tooltipTree !== tree) { tooltip.innerHTML = tooltipHTML(tree); tooltipTree = tree; }
+  tooltip.style.display = 'block';
+
+  const big = L.sz * 1.28;
+  const lbl = Math.max(7, L.sz * 0.42);
+  const treeTop    = ay - big * 0.66 - lbl - 4;
+  const treeBottom = ay + L.sz * 0.6 + lbl + 3;
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  const M = 8, GAP = 10;
+  const spaceBelow = vh - treeBottom - GAP - M;
+  const spaceAbove = treeTop - GAP - M;
+
+  let top, left, place;
+  if (th <= spaceBelow)      { place = 'below'; top = treeBottom + GAP; }
+  else if (th <= spaceAbove) { place = 'above'; top = treeTop - GAP - th; }
+  else                       { place = 'side';  top = clamp(ay - th / 2, M, Math.max(M, vh - M - th)); }
+
+  if (place === 'side') {
+    const right = ax + big * 0.6 + GAP;
+    left = (right + tw <= vw - M) ? right : ax - big * 0.6 - GAP - tw;
+  } else {
+    left = ax - tw / 2;
+  }
+  left = clamp(left, M, Math.max(M, vw - M - tw));
+
+  tooltip.style.left = Math.round(left) + 'px';
+  tooltip.style.top  = Math.round(top) + 'px';
+  tooltip.classList.toggle('below', place === 'below');
+  tooltip.classList.toggle('above', place === 'above');
+  tooltip.style.setProperty('--arrow-x', clamp(ax - left, 14, tw - 14) + 'px');
+}
+
+function refresh() { render(ctx, W, H); updateTooltip(); }
+
+canvas.addEventListener('pointerdown', e => { lastPointerType = e.pointerType || 'mouse'; });
+
+// Computador: al pasar el cursor
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  const found = findTreeAt(e.clientX, e.clientY, 'mouse');
+  canvas.style.cursor = found ? 'pointer' : 'crosshair';
+  if (found !== hoveredTree) { hoveredTree = found; refresh(); }
 });
-canvas.addEventListener('mouseleave', () => {
+canvas.addEventListener('pointerleave', e => {
+  if (e.pointerType !== 'mouse' || !hoveredTree) return;
   hoveredTree = null;
-  document.getElementById('tooltip').style.display = 'none';
-  render(ctx, W, H);
+  refresh();
 });
+
+// Clic o toque: fija la información; otro clic en el mismo árbol o fuera de él la cierra
+canvas.addEventListener('click', e => {
+  const found = findTreeAt(e.clientX, e.clientY, lastPointerType);
+  pinnedTree = (found && found !== pinnedTree) ? found : null;
+  refresh();
+});
+document.addEventListener('click', e => {
+  if (pinnedTree && e.target !== canvas) { pinnedTree = null; refresh(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && (pinnedTree || hoveredTree)) { pinnedTree = null; hoveredTree = null; refresh(); }
+});
+
+// Deslizar el mapa o la página mantiene el recuadro junto a su árbol
+let frameQueued = false;
+function queueRefresh() {
+  if (frameQueued) return;
+  frameQueued = true;
+  requestAnimationFrame(() => { frameQueued = false; refresh(); });
+}
+scrollBox.addEventListener('scroll', queueRefresh, { passive:true });
+window.addEventListener('scroll', () => { if (hoveredTree || pinnedTree) updateTooltip(); }, { passive:true });
+
+// Cambios de tamaño u orientación de la pantalla
+let resizeQueued = false;
+function queueResize() {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { resizeQueued = false; resizeCanvas(); });
+}
+window.addEventListener('resize', queueResize);
+window.addEventListener('orientationchange', queueResize);
+if (MOBILE_QUERY.addEventListener) MOBILE_QUERY.addEventListener('change', queueResize);
+else if (MOBILE_QUERY.addListener) MOBILE_QUERY.addListener(queueResize);
 
 // ── FILTROS ───────────────────────────────────────────────────────────────────
 document.querySelectorAll('.chip').forEach(chip => {
@@ -533,13 +770,14 @@ document.querySelectorAll('.chip').forEach(chip => {
     const set = activeFilters[type];
     if (set.has(val)) { if (set.size > 1) { set.delete(val); chip.classList.remove('active'); } }
     else { set.add(val); chip.classList.add('active'); }
-    render(ctx, W, H);
+    if (pinnedTree && !isActive(pinnedTree)) pinnedTree = null;
+    refresh();
   });
 });
 function resetFilters() {
   activeFilters = { ec:new Set(['1','2','3']), ferti:new Set(['alta']), bloque:new Set(['1','2','3']) };
   document.querySelectorAll('.chip').forEach(c => c.classList.add('active'));
-  render(ctx, W, H);
+  refresh();
 }
 function getFilterText() {
   const ec = [...activeFilters.ec].map(v=>'Ec'+v).join(', ');
@@ -627,16 +865,18 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
         });
       }
       allRecords = newRecs.filter(r => r.ferti === 'alta');
+      hoveredTree = null; pinnedTree = null;
       document.getElementById('uploadZone').classList.add('loaded');
       document.getElementById('uploadZone').querySelector('p').innerHTML = `<strong>${file.name}</strong><br>${allRecords.length} árboles`;
       document.getElementById('loadStatus').textContent = '✅ Cargado correctamente';
-      render(ctx, W, H);
+      refresh();
     } catch(err) { alert('Error: '+err.message); }
   };
   reader.readAsArrayBuffer(file);
 });
 
 window.addEventListener('load', resizeCanvas);
+resizeCanvas();
 </script>
 </body>
 </html>
